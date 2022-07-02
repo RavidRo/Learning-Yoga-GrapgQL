@@ -1,5 +1,7 @@
 import { makeExecutableSchema } from '@graphql-tools/schema';
+import { GraphQLYogaError } from '@graphql-yoga/node';
 import { Comment, Link } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime';
 import { GraphQLContext } from './context';
 
 const typeDefinitions = /* GraphQL */ `
@@ -28,6 +30,13 @@ const typeDefinitions = /* GraphQL */ `
 		link: Link
 	}
 `;
+
+const parseIntSafe = (value: string): number | null => {
+	if (/^(\d+)$/.test(value)) {
+		return parseInt(value, 10);
+	}
+	return null;
+};
 
 const resolvers = {
 	Link: {
@@ -70,12 +79,32 @@ const resolvers = {
 			args: { linkId: string; body: string },
 			context: GraphQLContext
 		) => {
-			const newComment = await context.prisma.comment.create({
-				data: {
-					body: args.body,
-					linkId: parseInt(args.linkId),
-				},
-			});
+			const linkId = parseIntSafe(args.linkId);
+			if (linkId === null) {
+				return Promise.reject(
+					new GraphQLYogaError(
+						`Cannot post comment on non-existing link with id ${args.linkId}`
+					)
+				);
+			}
+
+			const newComment = await context.prisma.comment
+				.create({
+					data: {
+						body: args.body,
+						linkId,
+					},
+				})
+				.catch((err) => {
+					if (err instanceof PrismaClientKnownRequestError && err.code === 'P2003') {
+						return Promise.reject(
+							new GraphQLYogaError(
+								`Cannot post comment on none-existing link with id ${args.linkId}.`
+							)
+						);
+					}
+					return Promise.reject(err);
+				});
 
 			return newComment;
 		},
