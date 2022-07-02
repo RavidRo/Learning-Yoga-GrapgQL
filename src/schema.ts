@@ -1,13 +1,13 @@
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { GraphQLYogaError } from '@graphql-yoga/node';
-import { Comment, Link } from '@prisma/client';
+import { Comment, Link, Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime';
 import { GraphQLContext } from './context';
 
 const typeDefinitions = /* GraphQL */ `
 	type Query {
 		info: String!
-		feed: [Link!]!
+		feed(filterNeedle: String): [Link!]!
 		comment(id: ID!): Comment
 		link(id: ID!): Link
 	}
@@ -51,8 +51,17 @@ const resolvers = {
 
 	Query: {
 		info: () => 'This is the API of Hacker News Clone',
-		feed: (_parent: unknown, _args: {}, context: GraphQLContext) =>
-			context.prisma.link.findMany(),
+		feed: (_parent: unknown, args: { filterNeedle?: string }, context: GraphQLContext) => {
+			const where: Prisma.LinkWhereInput = args.filterNeedle
+				? {
+						OR: [
+							{ description: { contains: args.filterNeedle } },
+							{ url: { contains: args.filterNeedle } },
+						],
+				  }
+				: {};
+			return context.prisma.link.findMany({ where });
+		},
 		comment: (_parent: unknown, args: { id: string }, context: GraphQLContext) =>
 			context.prisma.comment.findFirst({ where: { id: parseInt(args.id) } }),
 		link: (_parent: unknown, args: { id: string }, context: GraphQLContext) =>
