@@ -1,4 +1,5 @@
 import { makeExecutableSchema } from '@graphql-tools/schema';
+import { GraphQLContext } from './context';
 
 const typeDefinitions = /* GraphQL */ `
 	type Query {
@@ -20,20 +21,22 @@ const typeDefinitions = /* GraphQL */ `
 const resolvers = {
 	Query: {
 		info: () => 'This is the API of Hacker News Clone',
-		feed: () => links,
+		feed: (_parent: unknown, _args: {}, context: GraphQLContext) =>
+			context.prisma.link.findMany(),
 	},
 
 	Mutation: {
-		postLink: (_parent: unknown, args: { description: string; url: string }) => {
-			const linkID = links.length;
-
-			const link = {
-				id: `link-${linkID}`,
-				description: args.description,
-				url: args.url,
-			};
-
-			links.push(link);
+		postLink: async (
+			_parent: unknown,
+			args: { description: string; url: string },
+			context: GraphQLContext
+		) => {
+			const link = await context.prisma.link.create({
+				data: {
+					description: args.description,
+					url: args.url,
+				},
+			});
 
 			return link;
 		},
@@ -44,18 +47,3 @@ export const schema = makeExecutableSchema({
 	resolvers: [resolvers],
 	typeDefs: [typeDefinitions],
 });
-
-// ********* Dummy Data *********
-type Link = {
-	id: string;
-	description: string;
-	url: string;
-};
-
-const links: Link[] = [
-	{
-		id: 'link-0',
-		url: 'https://graphql-yoga.com',
-		description: 'The easiest way of setting up a GraphQL server',
-	},
-];
