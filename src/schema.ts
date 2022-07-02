@@ -6,6 +6,10 @@ const typeDefinitions = /* GraphQL */ `
 		feed: [Link!]!
 	}
 
+	type Mutation {
+		postLink(url: String!, description: String!): Link!
+	}
+
 	type Link {
 		id: ID!
 		description: String!
@@ -19,10 +23,20 @@ const resolvers = {
 		feed: () => links,
 	},
 
-	Link: {
-		id: (link: Link) => link.id,
-		description: (link: Link) => link.description,
-		url: (link: Link) => link.url,
+	Mutation: {
+		postLink: (_parent: unknown, args: { description: string; url: string }) => {
+			const linkID = links.length;
+
+			const link = {
+				id: `link-${linkID}`,
+				description: args.description,
+				url: args.url,
+			};
+
+			links.push(link);
+
+			return link;
+		},
 	},
 };
 
